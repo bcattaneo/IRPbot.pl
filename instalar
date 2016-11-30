@@ -1,0 +1,83 @@
+#!/bin/bash
+
+#
+# Instalador iRPBot (1.0)
+#
+# Consultar archivo "LEER".
+#
+# Licencia:
+# Copyright 2012 UnitedHack
+#
+# This file is part of iRPBot.
+# 
+# iRPBot is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# iRPBot is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with iRPBot.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Licencia (traducción sin valor legal):
+# Este archivo es parte de iRPBot.
+#
+# iRPBot es software libre. Puede redistribuirlo y/o modificarlo
+# bajo los términos de la Licencia Pública General de GNU según es
+# publicada por la Free Software Foundation, bien de la versión 2 de
+# dicha Licencia o bien (según su elección) de cualquier versión posterior.
+#
+# iRPBot se distribuye con la esperanza de que sea útil, pero
+# SIN NINGUNA GARANTÍA, incluso sin la garantía MERCANTIL implícita o
+# sin garantizar la CONVENIENCIA PARA UN PROPÓSITO PARTICULAR. Véase
+# la Licencia Pública General de GNU para más detalles.
+#
+# Debería haber recibido una copia de la Licencia Pública General junto
+# con iRPBot. Si no ha sido así, véase <http://www.gnu.org/licenses/>.
+#
+# iRPBot versión 1.0, Copyright 2012 UnitedHack.
+# sud0 <sud0@unitedhack.com>
+# http://www.unitedhack.com
+#
+
+RUTAI=`pwd`
+VERI="1.0"
+PERLI=`which perl`
+BASHI=`which bash`
+# Sí, bash =/ dash (sh)
+# dash tiene problemas con
+# el loop de irploop.sh.
+
+#clear
+echo -e " \e[00;34m __ ______ ______ ______         __   \e[00m"
+echo -e " \e[00;34m|__|   __ \   __ \   __ \.-----.|  |_ \e[00m"
+echo -e " \e[00;34m|  |      <    __/   __ <|  _  ||   _|\e[00m"
+echo -e " \e[00;34m|__|___|__|___|  |______/|_____||____| $VERI\e[00m"
+echo ""
+# cron
+echo "#!$BASHI" > $RUTAI/cron.sh
+echo "" >> $RUTAI/cron.sh
+echo "cd $RUTAI" >> $RUTAI/cron.sh
+echo "$PERLI $RUTAI/irpbot -zombie &" >> $RUTAI/cron.sh
+chmod ugo+x $RUTAI/cron.sh
+echo "* * * * * $BASHI $RUTAI/cron.sh" >> cron
+# loop (alternativa)
+echo "#!$BASHI" > $RUTAI/irploop.sh
+echo "" >> $RUTAI/irploop.sh
+echo "cd $RUTAI" >> $RUTAI/irploop.sh
+echo "for (( ; ; ))" >> $RUTAI/irploop.sh
+echo "do" >> $RUTAI/irploop.sh
+echo "	$PERLI $RUTAI/irpbot -zombie &" >> $RUTAI/irploop.sh
+echo "	sleep 60" >> $RUTAI/irploop.sh
+echo "done" >> $RUTAI/irploop.sh
+chmod ugo+x $RUTAI/irploop.sh
+crontab cron
+rm -f cron
+echo -e "\e[00;34m>\e[00m \e[00;32mEjecutado correctamente en segundo plano\e[00m"
+echo -e "\e[00;34m>\e[00m En caso de error consultar irpbot.log"
+echo ""
+exit

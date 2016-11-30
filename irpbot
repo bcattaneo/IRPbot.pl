@@ -1,0 +1,1458 @@
+#!/usr/bin/perl -w
+
+#
+# iRPBot (1.0)
+#
+# Consultar archivo "LEER".
+#
+# Descripción:
+# Un droide asesino serie HK (a.k.a. perl IRC Bot).
+#
+# Historial de cambios:
+# Nada
+#
+# Comandos internos:
+# !&ejecutar / !&e [orden shell]
+# !&definir [palabra]
+# !&achicar [url]
+# !&fbid [ID/alias]
+# !&ayudar
+# !&ayudar [comando]
+# !&agregar [comando] [texto]
+# !&borrar [comando]
+# !&rastrear / !&r [ip/hostname]
+#
+# Licencia:
+# Copyright 2012 UnitedHack.
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Licencia (traducción sin valor legal):
+# Copyright 2012 UnitedHack.
+#
+# Este programa es software libre. Puede redistribuirlo y/o modificarlo
+# bajo los términos de la Licencia Pública General de GNU según es
+# publicada por la Free Software Foundation, bien de la versión 2 de
+# dicha Licencia o bien (según su elección) de cualquier versión posterior.
+#
+# Este programa se distribuye con la esperanza de que sea útil, pero
+# SIN NINGUNA GARANTÍA, incluso sin la garantía MERCANTIL implícita o
+# sin garantizar la CONVENIENCIA PARA UN PROPÓSITO PARTICULAR. Véase
+# la Licencia Pública General de GNU para más detalles.
+#
+# Debería haber recibido una copia de la Licencia Pública General junto
+# con este programa. Si no ha sido así, véase <http://www.gnu.org/licenses/>.
+#
+# iRPBot versión 1.0, Copyright 2012 UnitedHack.
+# sud0 <sud0@unitedhack.com>
+# http://www.unitedhack.com
+#
+
+use strict;
+use IO::Socket;
+use IO::Select;
+use Encode;
+use Term::ANSIColor;
+
+# NickServ autoidentificar
+my $rdcosa = 0; # 1 para activar
+my $rdnick = "HK-47";
+my $rdcont = "pass";
+my $rdident = "HK";
+my $rdreal = "Droide asesino serie HK";
+
+#
+# Atención: No es necesario modificar nada
+# a partir de aquí.
+# Antes de ejecutar, utilizar "bash config"
+# o crear manualmente "irpbot.conf".
+#
+
+my $tiempo1;
+my $tiempo;
+my @mes1;
+my $mes;
+my $cmdz = shift(@ARGV);
+our @sinfo;
+our $nick;
+our $irprmv;
+our $ecd = "";
+my $cmd_p = "!&"; # Prefijo de los comandos
+my $rdhost = "*"; # Hostname
+my $debug = "1";
+my $bitlbee = 0;
+my $prefijo = "HK-";
+my $ident = "HK-";
+my $dcar = ">";
+my $version = "1.0";
+my $cmd_m = "[raw], ejecutar|e, definir, achicar, fbid, ayudar, agregar, borrar, rastrear|r";
+my $cmd_u = "definir, achicar, fbid, ayudar";
+
+if (defined($cmdz) && $cmdz eq "-zombie") {
+	$debug = "0";
+}
+
+sub nfacebook($);
+sub nfacebook($) {
+	# [Beta] Toma el nombre/apellido de facebook según su ID.
+	# TODO: Imitar un inicio de sesión para obtener más IDs.
+	my $fid0 = shift;
+	$fid0 =~ s/-//g;
+	my $fid1 = "http://www.facebook.com/$fid0";
+	my $EOL = "\015\012";
+	my $BLANK = $EOL x 2;
+	while (1) {
+		my $facec = 1;
+		my $facey = IO::Socket::INET->new(PeerAddr =>"www.facebook.com",
+		PeerPort =>"http(80)",
+		Proto => "tcp");
+		unless ($facey) {
+			return "no";
+			$facec = 0;
+			last;
+		}
+		if ($facec == 1) {
+			my $facet = "";
+			$facey->autoflush(1);
+			print $facey "GET $fid1 HTTP/1.0" . $EOL;
+			print $facey "Host: www.facebook.com" . $EOL;
+			print $facey "User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre" . $EOL;
+			print $facey "Accept: text/html,application/xhtml+xml,application/xml,application/ecmascript,text/javascript,text/jscript;q=0.9,*/*;q=0.8" . $EOL;
+			print $facey "Accept-Language: en-us,en;q=0.5" . $EOL;
+			print $facey "Accept-Encoding: deflate" . $EOL;
+			print $facey "Accept-Charset: ISO-8859-1;q=0.7,*;q=0.7" . $EOL;
+			print $facey "Connection: close" . $BLANK;
+			while ( my $facep = <$facey> ) {
+				$facet = "$facet$facep";
+			}
+			my @rfacet1 = split($BLANK, $facet);
+			my $rfacet;
+			if ($rfacet1[0] =~ /Location: (.*?)$EOL/o) {
+				# De ID a alias.
+				$fid1 = $1;
+				close $facey;
+			}
+			else {
+				if ($rfacet1[1] =~ /<title>(.*?)<\/title>/o) {
+					my $fbr = $1;
+					if ($fbr =~ /Not Found/) {
+						return "no encontrado";
+					}
+					else {
+						# Eliminar caracteres extraños.
+						#$fbr =~ s/[^[:ascii:]]+//g;
+						my $fbrt = "";
+						my $fbtim = 0;
+						my $fbrd = decode("utf-8", $fbr);
+						#my $fbrd = decode("euc-kr", $fbr);
+						my @fbr1 = split(" ", $fbrd);
+						# $fbr1[0] nombre
+						# $fbr1[1] apellido
+						while (@fbr1) {
+							if (defined($fbr1[$fbtim])) {
+								if ($fbr1[$fbtim] eq "|") {
+									return $fbrt;
+									last;
+								}
+								else {
+									if ($fbrt eq "") {
+										$fbrt = "$fbr1[$fbtim]";
+									}
+									else {
+										$fbrt = "$fbrt $fbr1[$fbtim]";
+									}
+								}
+								$fbtim++;
+							}
+							else {
+								return "error";
+								last;
+							}
+						}
+					}
+				}
+				else {
+					return "error";
+				}
+				close $facey;
+				last;
+			}
+			# Vuelve al bucle.
+		}
+	}
+}
+
+sub achicar($);
+sub achicar($) {
+	my $turl = shift;
+	my $EOL = "\015\012";
+	my $BLANK = $EOL x 2;
+	my $tinyc = 1;
+	my $tiny = IO::Socket::INET->new(PeerAddr =>"tinyurl.com",
+	PeerPort =>"http(80)",
+	Proto => "tcp");
+	unless ($tiny) {
+		return "no";
+		$tinyc = 0;
+	}
+	if ($tinyc == 1) {
+		my $tinyt = "";
+		$tiny->autoflush(1);
+		print $tiny "GET /api-create.php?url=$turl HTTP/1.0" . $EOL;
+		print $tiny "Host: tinyurl.com" . $EOL;
+		print $tiny "User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre" . $EOL;
+		print $tiny "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" . $EOL;
+		print $tiny "Accept-Language: es-es,es;q=0.5" . $EOL;
+		print $tiny "Accept-Encoding: gzip,deflate" . $EOL;
+		print $tiny "Accept-Charset: ISO-8859-1;q=0.7,*;q=0.7" . $EOL;
+		print $tiny "Connection: close" . $BLANK;
+		while ( my $tinyp = <$tiny> ) {
+			$tinyt = "$tinyt$tinyp";
+		}
+		if ($tinyt =~ /Error/) {
+			close $tiny;
+			return "error";
+		}
+		else {
+			close $tiny;
+			my @rtiny = split($BLANK, $tinyt);
+			return "$rtiny[1]";
+		}
+	}
+}
+
+sub irplog($);
+sub irplog($) {
+	my $logmsj = shift;
+	$tiempo1 = localtime(time);
+	@mes1 = split(" ", $tiempo1);
+	for ($mes1[1]) {
+		if (/Jan/) {$mes = "01"}
+		elsif (/Feb/) {$mes = "02"}
+		elsif (/Mar/) {$mes = "03"}
+		elsif (/Apr/) {$mes = "04"}
+		elsif (/May/) {$mes = "05"}
+		elsif (/Jun/) {$mes = "06"}
+		elsif (/Jul/) {$mes = "07"}
+		elsif (/Aug/) {$mes = "08"}
+		elsif (/Sep/) {$mes = "09"}
+		elsif (/Oct/) {$mes = "10"}
+		elsif (/Nov/) {$mes = "11"}
+		elsif (/Dec/) {$mes = "12"}
+	}
+	$tiempo = "$mes1[2]/$mes/$mes1[4] $mes1[3]";
+	my $clog;
+	open($clog, ">>irpbot.log");
+	print $clog "[$tiempo] iRPBot[$$] $logmsj";
+	close $clog;
+}
+
+sub cqbnick($);
+sub cqbnick($) {
+	my $cbqnick2 = shift;
+	if ($bitlbee == 0) {
+		return ", $cbqnick2";
+	}
+	else {
+		# Buscar nombre
+		my $faction1 = nfacebook($cbqnick2);
+		if ($faction1 eq "no") {
+			# Error al conectar
+			return "";
+		}
+		elsif ($faction1 eq "error") {
+			# Error en el GET
+			return "";
+		}
+		elsif ($faction1 eq "no encontrado") {
+			# Perfil no encontrado / No hay acceso
+			return "";
+		}
+		else {
+			if ($faction1 eq "") {
+				# Codificación rara en el nombre (china tal vez)
+				# TODO: Compatibilidad con esas codificaciones.
+				return "";
+			}
+			else {
+				# Correcto
+				return ", $faction1";
+			}
+		}
+			
+	}
+}
+
+sub cqbitlbee;
+sub cqbitlbee {
+	if ($bitlbee == 0) {
+		return "NOTICE";
+	}
+	else {
+		return "PRIVMSG";
+	}
+}
+
+sub cqinfo($);
+sub cqinfo($) {
+	my $sinfof = shift;
+	if ($sinfof eq $nick || $sinfof eq $rdnick) {
+		# Query
+		my $sninfo = $sinfo[0] =~ /^:(.*?)!/o;
+		return $1;
+	}
+	else {
+		# Canal
+		return $sinfof;
+	}
+}
+
+sub agregar($);
+sub agregar($) {
+	my $irprm1 = shift;
+	$irprm1 =~ s/^\s+//;
+	$irprm1 =~ s/\s+$//;
+	my $birp;
+	my $birpr;
+	my @birp2 = split(" ", $irprm1);
+	open($birp, "+>>comandos");
+	open($birpr, "<comandos");
+	my $cexiste = 0;
+	my $cbirp = 0;
+	foreach(<$birpr>) {
+		my $actual = $_;
+		my @actual2 = split(" ", $actual);
+		$actual2[0] =~ s/^\s+//;
+		$actual2[0] =~ s/\s+$//;
+		if ($birp2[0] eq $actual2[0]) {
+			$cexiste = 1;
+		}
+		$cbirp++;
+	}
+	if ($cexiste == 0) {
+		if ($cbirp == 0) {
+			print $birp "$irprm1";
+		}
+		else {
+			print $birp "\n$irprm1";
+		}
+		close $birp;
+		close $birpr;
+		return "Afirmación: Comando \"$birp2[0]\" agregado";
+	}
+	else {
+		close $birp;
+		close $birpr;
+		return "Negación: Ya existe comando \"$birp2[0]\"";
+	}
+}
+
+sub borrar($);
+sub borrar($) {
+	my $irprm1 = shift;
+	$irprm1 =~ s/^\s+//;
+	$irprm1 =~ s/\s+$//;
+	my $birp;
+	my $birpr;
+	my @birp2 = split(" ", $irprm1);
+	open($birpr, "<comandos");
+	my $cexiste = 0;
+	my $cbirp = 0;
+	my $ccons = "";
+	foreach(<$birpr>) {
+		my $actual = $_;
+		my @actual2 = split(" ", $actual);
+		$actual2[0] =~ s/^\s+//;
+		$actual2[0] =~ s/\s+$//;
+		if ($birp2[0] eq $actual2[0]) {
+			$cexiste = 1;
+		} 
+		else {
+			$actual =~ s/^\s+//;
+			$actual =~ s/\s+$//;
+			if ($ccons eq "") {
+				$ccons = "$actual";
+			}
+			else {
+				$ccons = "$ccons\n$actual";
+			}
+		}
+		$cbirp++;
+	}
+	if ($cexiste == 1) {
+		# Lo borramos
+		my $birpw;
+		open($birpw, "+>comandos");
+		print $birpw "$ccons";
+		close $birpw;
+		close $birpr;
+		return "Afirmación: Comando \"$birp2[0]\" borrado";
+	}
+	else {
+		close $birpr;
+		return "Negación: No se encontró \"$birp2[0]\"";
+	}
+}
+
+sub rastrear($);
+sub rastrear($) {
+	my $tips = shift;
+	my $EOL = "\015\012";
+	my $BLANK = $EOL x 2;
+	my $tipc = 1;
+	my $tip = IO::Socket::INET->new(PeerAddr =>"www.geobytes.com",
+	PeerPort =>"http(80)",
+	Proto => "tcp");
+	unless ($tip) {
+		$tipc = 0;
+		return "Negación: Error de conexión";
+	}
+	if ($tipc == 1) {
+		my $tipt = "";
+		$tip->autoflush(1);
+		print $tip "GET /IpLocator.htm?GetLocation&template=php3.txt&IpAddress=$tips HTTP/1.0" . $EOL;
+		print $tip "Host: www.geobytes.com" . $EOL;
+		print $tip "User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre" . $EOL;
+		print $tip "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" . $EOL;
+		print $tip "Accept-Language: es-es,es;q=0.5" . $EOL;
+		print $tip "Accept-Encoding: gzip,deflate" . $EOL;
+		print $tip "Accept-Charset: ISO-8859-1;q=0.7,*;q=0.7" . $EOL;
+		print $tip "Connection: close" . $BLANK;
+		while ( my $tipp = <$tip> ) {
+			$tipt = "$tipt$tipp";;
+		}
+		close $tip;
+		if ($tipt =~ /<meta name="known" content="(.*?)">/o) {
+			my $ipvl = $1;
+			my $ipva;
+			if ($ipvl eq "true") {
+				# ----
+				$tipt =~ /<meta name="locationcode" content="(.*?)">/o;
+				my $ipv1 = $1;
+				# ----
+				$tipt =~ /<meta name="iso2" content="(.*?)">/o;
+				my $ipv2 = $1;
+				# ----
+				$tipt =~ /<meta name="internet" content="(.*?)">/o;
+				my $ipv3 = $1;
+				# ----
+				$tipt =~ /<meta name="countryid" content="(.*?)">/o;
+				my $ipv4 = $1;
+				# ----
+				$tipt =~ /<meta name="country" content="(.*?)">/o;
+				my $ipv5 = $1;
+				# ----
+				$tipt =~ /<meta name="regionid" content="(.*?)">/o;
+				my $ipv6 = $1;
+				# ----
+				$tipt =~ /<meta name="region" content="(.*?)">/o;
+				my $ipv7 = $1;
+				# ----
+				$tipt =~ /<meta name="regioncode" content="(.*?)">/o;
+				my $ipv8 = $1;
+				# ----
+				$tipt =~ /<meta name="cityid" content="(.*?)">/o;
+				my $ipv9 = $1;
+				# ----
+				$tipt =~ /<meta name="city" content="(.*?)">/o;
+				my $ipv10 = $1;
+				# ----
+				$tipt =~ /<meta name="timezone" content="(.*?)">/o;
+				my $ipv11 = $1;
+				# ----
+				$tipt =~ /<meta name="latitude" content="(.*?)">/o;
+				my $ipv12 = $1;
+				# ----
+				$tipt =~ /<meta name="longitude" content="(.*?)">/o;
+				my $ipv13 = $1;
+				return "[$ipv1] [$ipv2] [$ipv3] [$ipv4] [País: $ipv5] [$ipv6] [Región: $ipv7] [$ipv8] [$ipv9] [Ciudad: $ipv10] [GMT: $ipv11] [Ubicación: $ipv12,$ipv13] | Google Maps: ".achicar("http://maps.google.com/maps?q=$ipv12,$ipv13&iwloc=A&hl=es");
+			}
+			else {
+				return "no";
+			}
+		}
+		else {
+			return "error";
+		}
+	}
+}
+
+sub irprm($);
+sub irprm($) {
+	my $irpmv2 = shift;
+	if ($irpmv2 == 1) {
+		$irprmv = `rm -f irpbot.bloquear`;
+		my $cirp;
+		open($cirp, ">irpbot.bloquear");
+		print $cirp "$$";
+		close $cirp;
+	}
+	else {
+		$irprmv = `rm -f irpbot.bloquear`;
+	}
+}
+
+sub dprint;
+sub dprint {
+	# Print para debug
+	my $dprints = shift;
+	my $dcolor = shift;
+	irplog("$dprints\n");
+	if ($debug eq "1") {
+		if (defined($dcolor) && $dcolor eq "rojo") {
+			print color("blue"), "$dcar ", color("reset");
+			print color("red"), "$dprints", color("reset");
+			print "\n";
+		}
+		elsif (defined($dcolor) && $dcolor eq "amarillo") {
+			print color("blue"), "$dcar ", color("reset");
+			print color("yellow"), "$dprints", color("reset");
+			print "\n";
+		}
+		elsif (defined($dcolor) && $dcolor eq "verde") {
+			print color("blue"), "$dcar ", color("reset");
+			print color("green"), "$dprints", color("reset");
+			print "\n";
+		}
+		elsif (defined($dcolor) && $dcolor eq "azul") {
+			print color("blue"), "$dcar ", color("reset");
+			print color("blue"), "$dprints", color("reset");
+			print "\n";
+		}
+		else {
+			print color("blue"), "$dcar ", color("reset");
+			print $dprints;
+			print "\n";
+		}
+	}
+}
+
+sub dprintd($);
+sub dprintd($) {
+	if ($debug eq "1") {
+		my $dprints = shift;
+		print color("blue"), "$dcar ", color("reset");
+		print "$dprints\n";
+	}
+}
+
+if ($debug eq "1") {
+	print color("blue"), "  __ ______ ______ ______         __   ", color("reset");
+	print "\n";
+	print color("blue"), " |__|   __ \\   __ \\   __ \\.-----.|  |_ ", color("reset");
+	print "\n";
+	print color("blue"), " |  |      <    __/   __ <|  _  ||   _|", color("reset");
+	print "\n";
+	print color("blue"), " |__|___|__|___|  |______/|_____||____| $version", color("reset");
+	print "\n\n";
+}
+
+# Verifica que sólo hay un irpbot ejecutado
+my $irpcomp1 = `ls | grep instalar`;
+if (defined($irpcomp1) && ($irpcomp1 ne "")) {
+	my $irpcomp2 = `ls | grep irpbot.bloquear`;
+	if (defined($irpcomp2) && ($irpcomp2 ne "")) {
+		# Ya está ejecutado?.
+		my $pidv;
+		open($pidv, "<irpbot.bloquear");
+		my $ppidv = <$pidv>;
+		chomp $ppidv;
+		my $ppidv2 = `ps -p $ppidv`;
+		my @ppidvs = split("\n", $ppidv2);
+		if (defined($ppidvs[1]) && $ppidvs[1] ne "") {
+			# Está ejecutado
+			if ($debug eq "1") {
+				print color("blue"), "$dcar ", color("reset");
+				print color("red"), "[Error] iRPBot ya está ejecutado (pid $ppidv).", color("reset");
+				print "\n";
+				print color("blue"), "$dcar ", color("reset");
+				print "Utiliza \"kill $ppidv\" para finalizar la instancia.";
+				print "\n\n";
+			}
+			exit;
+		}
+		close $pidv;
+	}
+}
+else {
+	dprint "[Error] iRPBot debe ejecutarse desde su directorio.", "rojo";
+	print "\n";
+	exit;
+}
+
+# ** Inicio **
+# Crear archivo de bloqueo ("irprm(0)" lo elimina)
+irprm(1);
+
+my $cconf;
+my $servidor;
+my $puerto;
+my $clave;
+my $canal;
+my $master;
+open($cconf, "<irpbot.conf");
+my $cconfc2 = `ls | grep irpbot.conf`;
+if (defined($cconfc2) && ($cconfc2 ne "")) {
+	my $cconft = 0;
+	while(my $cconfl = <$cconf>) {
+		chop $cconfl;
+		if ($cconft == 0) {
+			$cconfl =~ s/servidor\://g;
+			$servidor = $cconfl;
+		}
+		elsif ($cconft == 1) {
+			$cconfl =~ s/puerto\://g;
+			$puerto = $cconfl;
+		}
+		elsif ($cconft == 2) {
+			$cconfl =~ s/clave\://g;
+			$clave = $cconfl;
+		}
+		elsif ($cconft == 3) {
+			$cconfl =~ s/canal\://g;
+			$canal = $cconfl;
+		}
+		elsif ($cconft == 4) {
+			$cconfl =~ s/master\://g;
+			$master = $cconfl;
+		}
+		$cconft++;
+	}
+	if ($servidor eq "" || $puerto eq "" || $canal eq "" || $master eq "") {
+		close $cconf;
+		dprint "[Error] Configuración incorrecta. Ejecute ./configurar e intente nuevamente.", "rojo";
+		print "\n";
+		irprm(0);
+		exit;
+	}
+	close $cconf;
+}
+else {
+	dprint "[Error] Configuración incorrecta. Ejecute ./configurar e intente nuevamente.", "rojo";
+	print "\n";
+	irprm(0);
+	exit;
+}
+
+dprint "SERVIDOR=$servidor,PUERTO=$puerto,CLAVE=$clave,CANALES=$canal,AMOS=$master";
+dprint "Conectando al servidor $servidor:$puerto...";
+
+my $remoto = IO::Socket::INET->new(PeerAddr =>$servidor,
+PeerPort =>$puerto,
+Proto => "tcp");
+
+my $ident2 = sprintf("$ident%d", rand(9999));
+$nick = sprintf("$prefijo%d", rand(9999));
+
+unless ($remoto) {
+	irprm(0); 
+	dprint "[Error] No se pudo conectar al servidor $servidor:$puerto.", "rojo";
+	print "\n";
+	exit;
+}
+dprint "Conectado al servidor $servidor:$puerto.", "verde";
+if (defined($clave) && $clave ne "") {
+	print $remoto "PASS $clave\r\n";
+}
+if ($rdcosa == 1 && $rdnick ne "" && $rdident ne "") {
+	if ($rdreal ne "") {
+		print $remoto "NICK $nick\r\n";
+		print $remoto "USER $rdident 8 $rdhost :$rdreal\r\n";
+	}
+	else {
+		print $remoto "NICK $nick\r\n";
+		print $remoto "USER $rdident 8 $rdhost :Droide asesino serie HK\r\n";
+	}
+}
+else {
+	print $remoto "NICK $nick\r\n";
+	print $remoto "USER $ident2 8 $rdhost :$ident2\r\n";
+}
+
+while (my $entrando = <$remoto>) {
+	chop $entrando;
+	if ($entrando =~ /^PING(.*)$/i) {
+		# Nota: Esta línea es necesaria ya que
+		# algunos servidores envían "PING"
+		# en el momento de la conexión.
+		print $remoto "PONG $1\r\n";
+	}
+	# Respuestas numéricas que envía el servidor.
+	elsif ($entrando =~ /004/) {
+		# Conectado.
+		# Una vez conectados, entramos al canal.
+		dprintd "$entrando";
+		print $remoto "MODE $nick +BpiTt\r\n";
+		if ($rdcosa == 1 && $rdnick ne "" && $rdident ne "") {
+			print $remoto "PRIVMSG NickServ :release $rdnick $rdcont\r\n";
+			print $remoto "PRIVMSG NickServ :ghost $rdnick $rdcont\r\n";
+			print $remoto "NICK $rdnick\r\n";
+			print $remoto "PRIVMSG NickServ :identify $rdcont\r\n";
+		}
+		print $remoto "JOIN $canal\r\n";
+		#print $remoto "PRIVMSG $canal :Declaración: $nick está listo para servir, amo.\r\n";
+		last;
+	}
+	elsif ($entrando =~ /433/) {
+		dprintd "$entrando";
+		dprint "[Error] El nick \"$nick\" se encuentra en uso.", "rojo";
+		print "\n";
+		irprm(0);
+		exit;
+		last;
+	}
+}
+
+# "Loop" infinito para órdenes
+my $s = IO::Select->new();
+$s->add(\*STDIN);
+my $sel = IO::Select->new($remoto);
+while (1) {
+	if ($sel->can_read(.5)) {
+		my $entrada = <$remoto>;
+		if (!$entrada) {
+			# Se perdió la conexión.
+			close $remoto;
+			dprint "[Error] Se perdió la conexión.", "rojo";
+			irprm(0);
+			exit;
+		}
+		chop $entrada;
+		if ($entrada =~ /^PING(.*)$/i) {
+			# Respondemos el PING.
+			print $remoto "PONG $1\r\n";
+			#print "PING?, PONG!\n";
+		}
+		elsif ($entrada =~ /KICK(.*)$/i) {
+			dprintd "$entrada";
+			print $remoto "JOIN $1\r\n";
+		}
+		else {
+		# Si no es PING, escribimos lo que se recibe.
+		my $comando1 = $entrada;
+		my $cchop = $entrada;
+		chop $cchop;
+		my @comando = split(/$cmd_p/, $comando1);
+		if (defined($comando[1]) && $comando[1] ne "") {
+			my @cverif = split(":", $comando1);
+			if ($cverif[2] =~ /^$cmd_p/) {
+				my $vcomando = $comando[1];
+				$vcomando =~ s/^\s+//;
+				$vcomando =~ s/\s+$//;
+				if (defined($vcomando) && $vcomando ne "") {
+					my $ncomando1 = $comando[1];
+					# Comandos.
+					$ncomando1 =~ s/^\s+//;
+					$ncomando1 =~ s/\s+$//;
+					my @ncomando = split(/ +/, $ncomando1);
+					if (defined($ncomando[1]) && $ncomando[1] ne "") {
+						# Comandos "!&comando orden
+						# Abrimos los comandos guardados
+						my $ccmd;
+						open($ccmd, "<comandos");
+						unless($ccmd) {
+							open($ccmd, "+>comandos");
+						}
+						my $auth = $entrada;
+						my @auth = split(/!/, $auth); 
+						my @action = split(/ +/, $comando[1]);
+						my $act = chr(1);
+						@sinfo = split(/ /, $entrada);
+						# Amos
+						my $authc1 = "usuario";
+						my $authc2 = $master;
+						$authc2 =~ s/\,//;
+						if ($authc2 ne $master) {
+							my @authc3 = split("\,", $master);
+							foreach (@authc3) {
+								my $cauthcn = $_;
+								if ($auth[0] eq ":$cauthcn") {
+									$authc1 = "master";
+									last;
+								}
+							}
+						}
+						else {
+							if ($auth[0] eq ":$master") {
+								$authc1 = "master";
+							}
+						}
+						# Master
+						if ($authc1 eq "master") {
+							# Comandos predeterminados
+							if ($action[0] eq "probar") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								my $cc1 = $action[0] =~ s/(.)/$1/sg;
+								my $corden = substr($echop[1], $cc1);
+								$corden =~ s/^\s+//;
+								$corden =~ s/\s+$//;
+								#print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :".chr(1)."ACTION Afirmación: Comando \"$action[0]\" con orden \"$corden\" recibido, amo.".chr(1)."\r\n";
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." : Afirmación: Comando \"$action[0]\" con orden \"$corden\" recibido, amo.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($action[0] eq "fbid") {
+								# Prueba de nfacebook($);
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								my $faction1 = nfacebook($action[1]);
+								if ($faction1 eq "no") {
+									# Error al conectar
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Error de conexión, amo.\r\n";
+								}
+								elsif ($faction1 eq "error") {
+									# Error en el GET
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Comprueba el vínculo, amo.\r\n";
+								}
+								elsif ($faction1 eq "no encontrado") {
+									# Perfil no encontrado / No hay acceso
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Perfil no encontrado, amo.\r\n";
+								}
+								else {
+									if ($faction1 eq "") {
+										# Codificación rara en el nombre (china tal vez)
+										# TODO: Compatibilidad con esas codificaciones.
+										print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Perfil encontrado pero con codificación ilegible, amo.\r\n";
+									}
+									else {
+										# Correcto
+										print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$faction1\r\n";
+									}
+								}
+							}
+							elsif ($action[0] eq "achicar") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								my $taction1 = achicar($action[1]);
+								if ($taction1 eq "no") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Error de conexión, amo.\r\n";
+								}
+								elsif ($taction1 eq "error") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Comprueba el vínculo, amo.\r\n";
+								}
+								else {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$taction1\r\n";
+								}
+							}
+							elsif ($action[0] eq "agregar") {
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								my $cc1 = $action[0] =~ s/(.)/$1/sg;
+								my $print1 = substr($echop[1], $cc1);
+								$print1 =~ s/^\s+//;
+								$print1 =~ s/\s+$//;
+								my $tagregar = agregar($print1);
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$tagregar, amo.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($action[0] eq "borrar") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my $tborrar = borrar($action[1]);
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$tborrar, amo.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($action[0] eq "rastrear" || $action[0] eq "r") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Rastreando dirección \"$action[1]\", amo.\r\n";
+								my $trastrear = rastrear($action[1]);
+								if ($trastrear eq "no") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Dirección inválida, amo\r\n";
+								}
+								elsif ($trastrear eq "error") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Error al obtener información, amo\r\n";
+								}
+								else {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$trastrear\r\n";
+								}
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($action[0] eq "ayudar") {
+								# Master
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								if ($action[1] eq "ejecutar" || $action[1] eq "e") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."ejecutar orden shell\". Por ejemplo \"".$cmd_p."ejecutar uname -a\", amo.\r\n";
+								}
+								elsif ($action[1] eq "fbid") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."fbid facebook id/alias\". Por ejemplo \"".$cmd_p."fbid 100004386815625\", amo.\r\n";
+								}
+								elsif ($action[1] eq "definir") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."definir palabra\". Por ejemplo \"".$cmd_p."definir estupefacto\", amo.\r\n";
+								}
+								elsif ($action[1] eq "achicar") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."achicar url\". Por ejemplo \"".$cmd_p."achicar http://www.youtube.com/watch?v=UhjG47gtMCo\", amo.\r\n";
+								}
+								elsif ($action[1] eq "ayudar") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Eres un saco de carne muy cómico, amo.\r\n";
+								}
+								elsif ($action[1] eq "agregar") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."agregar comando texto\". Por ejemplo \"".$cmd_p."agregar noflood hknick, por favor, evita las repeticiones.\", amo.\r\n";
+								}
+								elsif ($action[1] eq "borrar") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."borrar comando\". Por ejemplo \"".$cmd_p."borrar noflood\", amo.\r\n";
+								}
+								elsif ($action[1] eq "rastrear" || $action[1] eq "r") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."rastrear dirección\". Por ejemplo \"".$cmd_p."rastrear 190.135.17.190\", amo.\r\n";
+								}
+								else {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"$action[1]\" no es un comando interno, amo.\r\n";
+								}
+							}
+							elsif ($action[0] eq "definir") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Buscando definición de \"$action[1]\", amo.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								my $EOL = "\015\012";
+		    						my $BLANK = $EOL x 2;
+								my $raec = 1;
+								my $rae = IO::Socket::INET->new(PeerAddr =>"wordreference.com",
+								PeerPort =>"http(80)",
+								Proto => "tcp");
+								unless ($rae) {
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: No se pudo conectar al servidor, amo.\r\n";
+								$raec = 0;
+								}
+								if ($raec == 1) {
+									my $raet = "";
+									$rae->autoflush(1);
+									print $rae "GET /definicion/$action[1] HTTP/1.0" . $EOL;
+									print $rae "Host: wordreference.com" . $EOL;
+									print $rae "User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre" . $EOL;
+									print $rae "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" . $EOL;
+									print $rae "Accept-Language: es-es,es;q=0.5" . $EOL;
+									print $rae "Accept-Encoding: gzip,deflate" . $EOL;
+									print $rae "Accept-Charset: ISO-8859-1;q=0.7,*;q=0.7" . $EOL;
+									print $rae "Connection: close" . $BLANK;
+									while ( my $raep = <$rae> ) { $raet = "$raet$raep"; }
+									if ($raet =~ /<h3>(.*?)<\/h3>/o) {
+										if ($raet =~ /<ol class='entry'>(.*?)<\/ol>/o) {
+											my $rdef = $1;
+											$rdef =~ s/<br>/ /g;
+											$rdef =~ s/&#9830;//g;
+											$rdef =~ s/<.+?>//sg;
+											$rdef =~ s/ +/ /g;
+											my $rdefch = $rdef =~ s/(.)/$1/sg;
+											if ($rdefch <= 300) {
+												my $rdefen = decode("utf-8", $rdef);
+												print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdefen\r\n";
+											}
+											else {
+												my $rdef2 = substr($rdef, 0, 300);
+												my $rdef2en = decode("utf-8", $rdef2);
+												my $taction1 = achicar("http://www.wordreference.com/definicion/$action[1]");
+												if ($taction1 eq "no") {
+													print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdef2en... (definición completa: http://www.wordreference.com/definicion/$action[1])\r\n";
+												}
+												elsif ($taction1 eq "error") {
+													print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdef2en... (definición completa: http://www.wordreference.com/definicion/$action[1])\r\n";
+												}
+												else {
+													print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdef2en... ($taction1)\r\n";
+												}
+											}
+										}
+										else {
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: No se encontró definición para \"$action[1]\", amo.\r\n";
+										}
+									}
+									else {
+										print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: No se encontró definición para \"$action[1]\", amo.\r\n";
+									}
+									close $rae;
+								}
+							}
+							elsif ($action[0] eq "ejecutar" || $action[0] eq "e") {
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								my $cc1 = $action[0] =~ s/(.)/$1/sg;
+								my $print1 = substr($echop[1], $cc1);
+								$print1 =~ s/^\s+//;
+								$print1 =~ s/\s+$//;
+								my @cejecutar;
+								if ($ecd eq "") {
+									@cejecutar = `$print1 && echo "" && pwd`;
+									if (defined($?)) {
+										#dprint "Ejecutar \"$cchop\": $?", "azul";
+									}
+								}
+								else {
+									@cejecutar = `cd $ecd && $print1 && echo "" && pwd`;
+									if (defined($?)) {
+										#dprint "Ejecutar \"$cchop\": $?", "azul";
+									}
+								}
+								# TODO:	Controlar errores
+								# if $?.. ($? numérico)
+								my $lsplits = 0;
+								my $cosac1 = scalar(keys @cejecutar)-1;
+								while (@cejecutar) {
+									if (defined($cejecutar[$lsplits])) {
+										if ($lsplits == $cosac1) {
+											# pwd "actual" (shell)
+											$ecd = $cejecutar[$lsplits];
+											chop $ecd;
+											$lsplits++;
+										}
+										else {
+											my $sesp1 = $cejecutar[$lsplits];
+											$sesp1 =~ s/^\s+//;
+											$sesp1 =~ s/\s+$//;
+											if ($sesp1 ne "") {
+												print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$cejecutar[$lsplits]\r\n";
+											}
+											$lsplits++;
+										}
+									}
+									else {
+										last;
+									}
+								}
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							else {
+								my $ccmdc = 0;
+								while(my $ccmdl = <$ccmd>) {
+									my @ccmds1 = split(/ /, $ccmdl);
+									if ($ccmds1[0] eq "$action[0]") {
+										$action[1] =~ s/\s+$//;
+										my @echop = split(/$cmd_p/, $cchop);
+										my $cc1 = $action[0] =~ s/(.)/$1/sg;
+										my $corden = substr($echop[1], $cc1);
+										$corden =~ s/^\s+//;
+										$corden =~ s/\s+$//;
+										# Orden sin espacios: $action[1];
+										my $ccnt1 = $action[0] =~ s/(.)/$1/sg;
+										my $ccntt = substr($ccmdl, $ccnt1);
+										$ccntt =~ s/^\s+//;
+										$ccntt =~ s/\s+$//;
+										# Cambiar "hknick" por $action[1]
+										$ccntt =~ s/hknick/$corden/g;
+										# Vemos si es "ACTION"
+										if ($ccntt =~ /hkme/) {
+											$ccntt =~ s/hkme//g;
+											$ccntt =~ s/^\s+//;
+											$ccntt =~ s/\s+$//;
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :".chr(1)."ACTION $ccntt".chr(1)."\r\n";
+										}
+										else {
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$ccntt\r\n";
+										}
+										$ccmdc = 1;
+										last;
+									}
+								}
+								if ($ccmdc == 0) {
+									print $remoto $comando[1];
+									dprint "Se recibió el comando \"$cchop\". Enviado al servidor.", "azul";
+								}
+							}
+							close $ccmd;
+						}
+						else {
+							my @cusuario = split(/:/, $auth[0]);
+							# Comandos predeterminados (usuario)
+							if ($action[0] eq "probar") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								my $cc1 = $action[0] =~ s/(.)/$1/sg;
+								my $corden = substr($echop[1], $cc1);
+								$corden =~ s/^\s+//;
+								$corden =~ s/\s+$//;
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Afirmación: Comando \"$action[0]\" con orden \"$corden\" recibido".cqbnick($cusuario[1]).".\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($action[0] eq "fbid") {
+								# Prueba de nfacebook($);
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								my $faction1 = nfacebook($action[1]);
+								if ($faction1 eq "no") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Error de conexión".cqbnick($cusuario[1]).".\r\n";
+								}
+								elsif ($faction1 eq "error") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Comprueba el vínculo".cqbnick($cusuario[1]).".\r\n";
+								}
+								elsif ($faction1 eq "no encontrado") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Perfil no encontrado".cqbnick($cusuario[1]).".\r\n";
+								}
+								else {
+									if ($faction1 eq "") {
+										print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Perfil encontrado pero con codificación ilegible".cqbnick($cusuario[1]).".\r\n";
+									}
+									else {
+										print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$faction1\r\n";
+									}
+								}
+							}
+							elsif ($action[0] eq "achicar") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								my $taction1 = achicar($action[1]);
+								if ($taction1 eq "no") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Error de conexión".cqbnick($cusuario[1]).".\r\n";
+								}
+								elsif ($taction1 eq "error") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: Comprueba el vínculo".cqbnick($cusuario[1]).".\r\n";
+								}
+								else {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$taction1\r\n";
+								}
+							}
+							elsif ($action[0] eq "ayudar") {
+								# Usuario / Ayuda comandos
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								if ($action[1] eq "definir") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."definir palabra\". Por ejemplo \"".$cmd_p."definir estupefacto\"".cqbnick($cusuario[1]).".\r\n";
+								}
+								elsif ($action[1] eq "achicar") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."achicar url\". Por ejemplo \"".$cmd_p."achicar http://www.youtube.com/watch?v=UhjG47gtMCo\"".cqbnick($cusuario[1]).".\r\n";
+								}
+								elsif ($action[1] eq "fbid") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"".$cmd_p."fbid facebook id/alias\". Por ejemplo \"".$cmd_p."fbid 100004386815625\"".cqbnick($cusuario[1]).".\r\n";
+								}
+								elsif ($action[1] eq "ayudar") {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Eres un saco de carne muy cómico".cqbnick($cusuario[1]).".\r\n";
+								}
+								else {
+									print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: \"$action[1]\" no es un comando interno".cqbnick($cusuario[1]).".\r\n";
+								}
+							}
+							elsif ($action[0] eq "definir") {
+								# Orden sin espacios: $action[1];
+								$action[1] =~ s/\s+$//;
+								my @echop = split(/$cmd_p/, $cchop);
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Buscando definición de \"$action[1]\"".cqbnick($cusuario[1]).".\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+								my $EOL = "\015\012";
+		    						my $BLANK = $EOL x 2;
+								my $raec = 1;
+								my $rae = IO::Socket::INET->new(PeerAddr =>"wordreference.com",
+								PeerPort =>"http(80)",
+								Proto => "tcp");
+								unless ($rae) {
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: No se pudo conectar al servidor".cqbnick($cusuario[1]).".\r\n";
+								$raec = 0;
+								}
+								if ($raec == 1) {
+									my $raet = "";
+									$rae->autoflush(1);
+									print $rae "GET /definicion/$action[1] HTTP/1.0" . $EOL;
+									print $rae "Host: wordreference.com" . $EOL;
+									print $rae "User-Agent: Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10.5; en-US; rv:1.9.1b3pre) Gecko/20081130 Minefield/3.1b3pre" . $EOL;
+									print $rae "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" . $EOL;
+									print $rae "Accept-Language: es-es,es;q=0.5" . $EOL;
+									print $rae "Accept-Encoding: gzip,deflate" . $EOL;
+									print $rae "Accept-Charset: ISO-8859-1;q=0.7,*;q=0.7" . $EOL;
+									print $rae "Connection: close" . $BLANK;
+									while ( my $raep = <$rae> ) { $raet = "$raet$raep"; }
+									if ($raet =~ /<h3>(.*?)<\/h3>/o) {
+										if ($raet =~ /<ol class='entry'>(.*?)<\/ol>/o) {
+											my $rdef = $1;
+											$rdef =~ s/<br>/ /g;
+											$rdef =~ s/&#9830;//g;
+											$rdef =~ s/<.+?>//sg;
+											$rdef =~ s/ +/ /g;
+											my $rdefch = $rdef =~ s/(.)/$1/sg;
+											if ($rdefch <= 300) {
+												my $rdefen = decode("utf-8", $rdef);
+												print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdefen\r\n";
+											}
+											else {
+												my $rdef2 = substr($rdef, 0, 300);
+												my $rdef2en = decode("utf-8", $rdef2);
+												my $taction1 = achicar("http://www.wordreference.com/definicion/$action[1]");
+												if ($taction1 eq "no") {
+													print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdef2en... (definición completa: http://www.wordreference.com/definicion/$action[1])\r\n";
+												}
+												elsif ($taction1 eq "error") {
+													print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdef2en... (definición completa: http://www.wordreference.com/definicion/$action[1])\r\n";
+												}
+												else {
+													print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$rdef2en... ($taction1)\r\n";
+												}
+											}
+										}
+										else {
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: No se encontró definición para \"$action[1]\"".cqbnick($cusuario[1]).".\r\n";
+										}
+									}
+									else {
+										print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Negación: No se encontró definición para \"$action[1]\"".cqbnick($cusuario[1]).".\r\n";
+									}
+									close $rae;
+								}
+							}
+							else {
+								# Comandos guardados (usuario)
+								my $ccmdc = 0;
+								while(my $ccmdl = <$ccmd>) {
+									my @ccmds1 = split(/ /, $ccmdl);
+									if ($ccmds1[0] eq "$action[0]") {
+										$action[1] =~ s/\s+$//;
+										my @echop = split(/$cmd_p/, $cchop);
+										my $cc1 = $action[0] =~ s/(.)/$1/sg;
+										my $corden = substr($echop[1], $cc1);
+										$corden =~ s/^\s+//;
+										$corden =~ s/\s+$//;
+										# Orden sin espacios: $action[1];
+										my $ccnt1 = $action[0] =~ s/(.)/$1/sg;
+										my $ccntt = substr($ccmdl, $ccnt1);
+										$ccntt =~ s/^\s+//;
+										$ccntt =~ s/\s+$//;
+										# Cambiar "hknick" por $action[1]
+										$ccntt =~ s/hknick/$corden/g;
+										# Vemos si es "ACTION"
+										if ($ccntt =~ /hkme/) {
+											$ccntt =~ s/hkme//g;
+											$ccntt =~ s/^\s+//;
+											$ccntt =~ s/\s+$//;
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :".chr(1)."ACTION $ccntt".chr(1)."\r\n";
+										}
+										else {
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$ccntt\r\n";
+										}
+										$ccmdc = 1;
+										last;
+									}
+								}
+								if ($ccmdc == 0) {
+									dprint "Comando \"$cchop\" ignorado.", "amarillo";
+								}
+							}
+							close $ccmd;
+						}
+					}
+					else {
+						my $saction = $comando[1];
+						chop $saction;
+						# Comandos sin órdenes "!&comando"
+						my $auth2 = $entrada;
+						my @auth2 = split(/!/, $auth2); 
+						@sinfo = split(/ /, $entrada);
+						# $sinfo[2] (canal actual)
+						# Amos
+						my $authc1 = "usuario";
+						my $authc2 = $master;
+						$authc2 =~ s/\,//;
+						if ($authc2 ne $master) {
+							my @authc3 = split("\,", $master);
+							foreach (@authc3) {
+								my $cauthcn = $_;
+								if ($auth2[0] eq ":$cauthcn") {
+									$authc1 = "master";
+									last;
+								}
+							}
+						}
+						else {
+							if ($auth2[0] eq ":$master") {
+								$authc1 = "master";
+							}
+						}
+						# Master
+						if ($authc1 eq "master") {
+							if ($saction eq "probar") {
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Afirmación: Comando \"$saction\" recibido, amo.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($saction eq "ayudar") {
+								my $cayudar;
+								open($cayudar, "<comandos");
+								unless($cayudar) {
+									open($cayudar, "+>comandos");
+								}
+								my $cayudarl = "";
+								foreach(<$cayudar>) {
+									my $cayudarl2 = $_;
+									my @cayudarl3 = split(" ", $cayudarl2);
+									if ($cayudarl eq "") {
+										$cayudarl = "$cayudarl3[0]";
+									}
+									else {
+										$cayudarl = "$cayudarl, $cayudarl3[0]";
+									}
+								}
+								close $cayudar;
+								my @dmaster = split(/:/, $auth2[0]);
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Se le enviarán los comandos por mensaje privado, amo.\r\n";
+								print $remoto cqbitlbee()." $dmaster[1] :Comandos internos: $cmd_m\r\n";
+								if ($cayudarl ne "") {
+									print $remoto cqbitlbee()." $dmaster[1] :Comandos de usuario: $cayudarl\r\n";
+								}
+								print $remoto cqbitlbee()." $dmaster[1] :Aclaración: Todos los comandos empiezan con el prefijo \"$cmd_p\". Los comandos de usuario siempre deben contener una orden.\r\n";
+								print $remoto cqbitlbee()." $dmaster[1] :Consejo: Utiliza \"".$cmd_p."ayudar\" seguido de un comando interno.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							else {
+								# Comandos "!&comando (se quita hknick)
+								# Abrimos los comandos guardados
+								my $ccmd;
+								open($ccmd, "<comandos");
+								unless($ccmd) {
+									open($ccmd, "+>comandos");
+								}
+								my $ccmdc = 0;
+								while(my $ccmdl = <$ccmd>) {
+									my @ccmds1 = split(/ /, $ccmdl);
+									if ($ccmds1[0] eq "$saction") {
+										my $ccnt1 = $saction =~ s/(.)/$1/sg;
+										my $ccntt = substr($ccmdl, $ccnt1);
+										# Cambiar "hknick" por nada
+										$ccntt =~ s/^\s+//g;
+										$ccntt =~ s/\s+$//g;
+										$ccntt =~ s/hknick//g;
+										$ccntt =~ s/^\,+//g;
+										$ccntt =~ s/\,+$//g;
+										$ccntt =~ s/^\s+//g;
+										$ccntt =~ s/\s+$//g;
+										# Vemos si es "ACTION"
+										if ($ccntt =~ /hkme/) {
+											$ccntt =~ s/hkme//g;
+											$ccntt =~ s/^\s+//;
+											$ccntt =~ s/\s+$//;
+											$ccntt =~ s/^\,+//g;
+											$ccntt =~ s/\,+$//g;
+											$ccntt =~ s/^\s+//g;
+											$ccntt =~ s/\s+$//g;
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :".chr(1)."ACTION $ccntt".chr(1)."\r\n";
+										}
+										else {
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$ccntt\r\n";
+										}
+										$ccmdc = 1;
+										last;
+									}
+								}
+								if ($ccmdc == 0) {
+									print $remoto $comando[1];
+									dprint "Se recibió el comando \"$cchop\". Enviado al servidor.", "azul";
+								}
+								close $ccmd;
+							}
+						}
+						else {
+							# Usuario
+							my @dusuario = split(/:/, $auth2[0]);
+							if ($saction eq "probar") {
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Afirmación: Comando \"$saction\" recibido".cqbnick($dusuario[1]).".\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							elsif ($saction eq "ayudar") {
+								my $cayudar;
+								open($cayudar, "<comandos");
+								unless($cayudar) {
+									open($cayudar, "+>comandos");
+								}
+								my $cayudarl = "";
+								foreach(<$cayudar>) {
+									my $cayudarl2 = $_;
+									my @cayudarl3 = split(" ", $cayudarl2);
+									if ($cayudarl eq "") {
+										$cayudarl = "$cayudarl3[0]";
+									}
+									else {
+										$cayudarl = "$cayudarl, $cayudarl3[0]";
+									}
+								}
+								close $cayudar;
+								my @dmaster = split(/:/, $auth2[0]);
+								print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :Declaración: Se le enviarán los comandos por mensaje privado".cqbnick($dusuario[1]).".\r\n";
+								print $remoto cqbitlbee()." $dusuario[1] :Comandos internos: $cmd_u\r\n";
+								if ($cayudarl ne "") {
+									print $remoto cqbitlbee()." $dusuario[1] :Comandos de usuario: $cayudarl\r\n";
+								}
+								print $remoto cqbitlbee()." $dusuario[1] :Aclaración: Todos los comandos empiezan con el prefijo \"$cmd_p\". Los comandos de usuario siempre deben contener una orden.\r\n";
+								print $remoto cqbitlbee()." $dusuario[1] :Consejo: Utiliza \"".$cmd_p."ayudar\" seguido de un comando interno.\r\n";
+								dprint "Se recibió el comando \"$cchop\".", "azul";
+							}
+							else {
+								# Comandos "!&comando (se quita hknick)
+								# Abrimos los comandos guardados
+								my $ccmd;
+								open($ccmd, "<comandos");
+								unless($ccmd) {
+									open($ccmd, "+>comandos");
+								}
+								my $ccmdc = 0;
+								while(my $ccmdl = <$ccmd>) {
+									my @ccmds1 = split(/ /, $ccmdl);
+									if ($ccmds1[0] eq "$saction") {
+										my $ccnt1 = $saction =~ s/(.)/$1/sg;
+										my $ccntt = substr($ccmdl, $ccnt1);
+										# Cambiar "hknick" por nada
+										$ccntt =~ s/^\s+//g;
+										$ccntt =~ s/\s+$//g;
+										$ccntt =~ s/hknick//g;
+										$ccntt =~ s/^\,+//g;
+										$ccntt =~ s/\,+$//g;
+										$ccntt =~ s/^\s+//g;
+										$ccntt =~ s/\s+$//g;
+										# Vemos si es "ACTION"
+										if ($ccntt =~ /hkme/) {
+											$ccntt =~ s/hkme//g;
+											$ccntt =~ s/^\s+//;
+											$ccntt =~ s/\s+$//;
+											$ccntt =~ s/^\,+//g;
+											$ccntt =~ s/\,+$//g;
+											$ccntt =~ s/^\s+//g;
+											$ccntt =~ s/\s+$//g;
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :".chr(1)."ACTION $ccntt".chr(1)."\r\n";
+										}
+										else {
+											print $remoto "PRIVMSG ".cqinfo($sinfo[2])." :$ccntt\r\n";
+										}
+										$ccmdc = 1;
+										last;
+									}
+								}
+								if ($ccmdc == 0) {
+									dprint "Comando \"$cchop\" ignorado.", "amarillo";
+								}
+								close $ccmd;
+							}
+						}
+					}
+				}
+				}
+				}
+				else {
+					dprintd "$entrada";
+				}
+		}
+	}
+	elsif ($s->can_read(.5)) {
+		if ($debug eq "1") {
+			chomp(my $cmdraw = <STDIN>);
+			print $remoto "$cmdraw\r\n";
+		}
+	}
+}
+close $remoto;
+irprm(0);
+exit;

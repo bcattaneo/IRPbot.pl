@@ -1,0 +1,153 @@
+#!/bin/bash
+
+#
+# Utilidad para configurar iRPBot (1.0)
+#
+# Consultar archivo "LEER".
+#
+# Licencia:
+# Copyright 2012 UnitedHack
+#
+# This file is part of iRPBot.
+# 
+# iRPBot is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# iRPBot is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with iRPBot.  If not, see <http://www.gnu.org/licenses/>.
+#
+# Licencia (traducción sin valor legal):
+# Este archivo es parte de iRPBot.
+#
+# iRPBot es software libre. Puede redistribuirlo y/o modificarlo
+# bajo los términos de la Licencia Pública General de GNU según es
+# publicada por la Free Software Foundation, bien de la versión 2 de
+# dicha Licencia o bien (según su elección) de cualquier versión posterior.
+#
+# iRPBot se distribuye con la esperanza de que sea útil, pero
+# SIN NINGUNA GARANTÍA, incluso sin la garantía MERCANTIL implícita o
+# sin garantizar la CONVENIENCIA PARA UN PROPÓSITO PARTICULAR. Véase
+# la Licencia Pública General de GNU para más detalles.
+#
+# Debería haber recibido una copia de la Licencia Pública General junto
+# con iRPBot. Si no ha sido así, véase <http://www.gnu.org/licenses/>.
+#
+# iRPBot versión 1.0, Copyright 2012 UnitedHack.
+# sud0 <sud0@unitedhack.com>
+# http://www.unitedhack.com
+#
+
+RUTAE=`pwd`
+VERI="1.0"
+RUTAO="$RUTAE/irpbot.conf"
+config="$RUTAE/irpbot.conf"
+MODO=0
+
+#probar1=$(dialog 2> /dev/null)
+#if [ $? = 0 ]; then
+#	MODO=1
+#fi
+
+# Quité la configuración por "dialog"
+# ya que varía mucho su versión :(
+# TODO: Incluir un dialog pre-compilado.
+
+if [ $MODO == 0 ]; then
+	#clear
+	echo -e " \e[00;34m __ ______ ______ ______         __   \e[00m"
+	echo -e " \e[00;34m|__|   __ \   __ \   __ \.-----.|  |_ \e[00m"
+	echo -e " \e[00;34m|  |      <    __/   __ <|  _  ||   _|\e[00m"
+	echo -e " \e[00;34m|__|___|__|___|  |______/|_____||____| $VERI\e[00m"
+	echo ""
+	echo -e "\e[00;34m>\e[00m \e[00;34mBienvenido a la configuración de iRPBot\e[00m"
+	echo -ne "\e[00;34m>\e[00m Servidor IRC: "
+	read servidor
+	echo -ne "\e[00;34m>\e[00m Puerto: "
+	read puerto
+	echo -ne "\e[00;34m>\e[00m Clave del servidor (opcional): "
+	read clave
+	echo -ne "\e[00;34m>\e[00m Canales (separar con comas): "
+	read canales
+	echo -ne "\e[00;34m>\e[00m Amos (separar con comas): "
+	read amos
+	echo -ne "\e[00;34m>\e[00m \e[00;34mConfigurando... \e[00m"
+	echo "servidor:$servidor" > $config
+	echo "puerto:$puerto" >> $config
+	echo "clave:$clave" >> $config
+	echo "canal:$canales" >> $config
+	echo "master:$amos" >> $config
+	sleep 1
+	echo -e "\e[00;32mlisto\e[00m"
+	echo -e "\e[00;34m>\e[00m \e[00;34mEjecuta ./instalar para conectar iRPBot. Escribe !&ayudar dentro del canal para conocer los comandos disponibles.\e[00m"
+	echo -e "\e[00;34m>\e[00m \e[00;33mRecuerda que por defecto iRPBot se ejecuta en segundo plano. En caso de error, no conexión, o inconveniente similar, siempre puedes revisar el archivo irpbot.log\e[00m"
+	echo ""
+else
+	dialog	--title "iRPBot" \
+		--msgbox "\n Bienvenido a la configuración de iRPBot."  7 46
+
+	dat1=$(dialog --stdout --title "iRPBot - Configurar (1/5)" \
+		--inputbox "\n Servidor IRC" 10 46)
+		if [ $? = 1 ]; then
+			clear
+			exit 1
+		else
+			tmp1=$dat1
+		fi
+
+	dat2=$(dialog --stdout --title "iRPBot - Configurar (2/5)" \
+		--inputbox "\n Puerto" 10 46)
+		if [ $? = 1 ]; then
+			clear
+			exit 1
+		else
+			tmp2=$dat2
+		fi
+
+	dat3=$(dialog --stdout --title "iRPBot - Configurar (3/5)" \
+		--inputbox "\n Clave del servidor (opcional)" 10 46)
+		if [ $? = 1 ]; then
+			clear
+			exit 1
+		else
+			tmp3=$dat3
+		fi
+
+	dat4=$(dialog --stdout --title "iRPBot - Configurar (4/5)" \
+		--inputbox "\n Canales (separar con comas)" 10 46)
+		if [ $? = 1 ]; then
+			clear
+			exit 1
+		else
+			tmp4=$dat4
+		fi
+
+	dat5=$(dialog --stdout --title "iRPBot - Configurar (5/5)" \
+		--inputbox "\n Amos (separar con comas)" 10 46)
+		if [ $? = 1 ]; then
+			clear
+			exit 1
+		else
+			tmp5=$dat5
+		fi
+
+	dialog	--infobox "Configurando..." 3 34; sleep 1
+	echo "servidor:$tmp1" > $config
+	echo "puerto:$tmp2" >> $config
+	echo "clave:$tmp3" >> $config
+	echo "canal:$tmp4" >> $config
+	echo "master:$tmp5" >> $config
+	
+	dialog	--title "iRPBot - Listo" \
+		--msgbox "\n Configurado correctamente.\n\n Ejecuta ./instalar para conectar iRPBot.\n\n Escribe !&ayudar dentro del canal para\n conocer los comandos disponibles."  12 46
+
+	dialog	--title "iRPBot - Importante" \
+		--msgbox "\n Recuerda que por defecto iRPBot se\n ejecuta en segundo plano.\n\n En caso de error, no conexión, o\n inconveniente similar, siempre puedes\n revisar el archivo irpbot.log."  12 46
+	clear
+fi
